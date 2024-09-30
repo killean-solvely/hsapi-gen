@@ -9,6 +9,7 @@ import (
 
 func main() {
 	hsTokenPtr := flag.String("token", "", "HubSpot API token")
+	pathPtr := flag.String("path", "", "Path to save the generated file")
 
 	flag.Parse()
 
@@ -17,10 +18,15 @@ func main() {
 		return
 	}
 
+	if *pathPtr == "" {
+		fmt.Println("Path is required. Use -path to provide the path to save the generated file.")
+		return
+	}
+
 	fmt.Println("Starting code generation")
 
 	codegen := codegen.NewCodegen(*hsTokenPtr)
-	err := codegen.GenerateAndSave("generated.ts")
+	err := codegen.GenerateAndSave(*pathPtr)
 	if err != nil {
 		panic(err)
 	}
