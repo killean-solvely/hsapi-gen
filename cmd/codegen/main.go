@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/killean-solvely/hsapi-gen/internal/codegen"
 )
 
 func main() {
@@ -17,8 +19,8 @@ func main() {
 
 	fmt.Println("Starting code generation")
 
-	codegen := NewCodegen(*hsTokenPtr)
-	err := codegen.Generate()
+	codegen := codegen.NewCodegen(*hsTokenPtr)
+	err := codegen.GenerateAndSave("generated.ts")
 	if err != nil {
 		panic(err)
 	}
