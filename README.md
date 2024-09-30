@@ -15,3 +15,8 @@ Locally
 
 Through Go
 `go run github.com/killean-solvely/hsapi-gen/cmd/codegen -token <your-hubspot-api-token> -path <path-to-output-file>`
+
+## TODO
+
+Currently only covers the base and custom object interactions for getting, creating, and updating, as well as associations.
+Future state should cover all of the other endpoints.
