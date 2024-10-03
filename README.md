@@ -14,7 +14,8 @@ Locally
 `hsapi-gen -token <your-hubspot-api-token> -path <path-to-output-file>`
 
 Through Go
-`go run github.com/killean-solvely/hsapi-gen/cmd/codegen -token <your-hubspot-api-token> -path <path-to-output-file>`
+`go install github.com/killean-solvely/hsapi-gen/cmd/hsapi-gen`
+`hsapi-gen -token <your-hubspot-api-token> -path <path-to-output-file>`
 
 ## TODO
 

@@ -22,7 +22,7 @@ builds:
       - linux
       - windows
       - darwin
-    main: ./cmd/codegen
+    main: ./cmd/hsapi-gen
     binary: hsapi-gen
 
 archives:
