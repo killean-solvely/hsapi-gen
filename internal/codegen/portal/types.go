@@ -7,7 +7,7 @@ type SchemaData struct {
 }
 
 type Association struct {
-	ID             int    `json:"id"`
+	ID             int    `json:"typeId"`
 	Label          string `json:"label"`
 	SanitizedLabel string `json:"sanitized_label"`
 	Category       string `json:"category"`
