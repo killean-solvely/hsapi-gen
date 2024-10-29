@@ -3,3 +3,8 @@ bin
 Makefile
 
 dist/
+
+genconf.json
+generated/
+production_api.json
+staging_api.json
