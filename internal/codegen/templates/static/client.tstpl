@@ -1,0 +1,186 @@
+import * as hubspot from "@hubspot/api-client";
+import { AssociationsConfigType, ObjectKeys, ObjectTypes } from "./Shared";
+import {
+  AssociationSpecAssociationCategoryEnum,
+  MultiAssociatedObjectWithLabel,
+} from "@hubspot/api-client/lib/codegen/crm/associations/v4";
+{{- range $internalName, $displayName := .PortalNames }}
+import {
+	{{ $displayName }}AssociationsConfig,
+	{{ $displayName }}TypeToObjectIDList,
+} from "./{{ $displayName }}"
+{{- end }}
+
+enum Portals {
+	{{- range $internalName, $displayName := .PortalNames }}
+  {{ $displayName }} = "{{ $internalName }}",
+  {{- end }}
+}
+
+export class HubspotClient {
+	private hubspotClient: hubspot.Client;
+
+	constructor(
+		token: string,
+		private typeToObjectIDList: Record<ObjectKeys, string>,
+		private associationsConfig: AssociationsConfigType,
+	) {
+		if (!token) {
+			throw new Error("No token provided");
+		}
+
+		this.hubspotClient = new hubspot.Client({
+			accessToken: token,
+		});
+	}
+
+	private getObjectTypeFunction<T extends keyof ObjectTypes>(
+		type: keyof ObjectTypes,
+	) {
+		return async <K extends keyof ObjectTypes[T]>(
+			objectId: string,
+			properties: K[],
+		): Promise<Pick<ObjectTypes[T], K>> => {
+			const res = await this.hubspotClient.crm.objects.basicApi.getById(
+				type,
+				objectId,
+				properties as string[],
+			);
+
+			const propResults: Pick<ObjectTypes[T], K> = res.properties as Pick<
+				ObjectTypes[T],
+				K
+			>;
+
+			return propResults;
+		};
+	}
+
+	private createObjectTypeFunction<T extends keyof ObjectTypes>(
+		type: keyof ObjectTypes,
+	) {
+		return async <K extends keyof ObjectTypes[T]>(
+			properties: Pick<ObjectTypes[T], K>,
+		): Promise<
+			Pick<ObjectTypes[T], K> & {
+				/** The unique ID for this record. This value is set automatically by HubSpot. */
+				hs_object_id: string;
+			}
+		> => {
+			const res = await this.hubspotClient.crm.objects.basicApi.create(type, {
+				properties: properties as Record<string, string>,
+				associations: [],
+			});
+
+			const propResults = {} as Pick<ObjectTypes[T], K>;
+
+			for (const key of Object.keys(properties) as K[]) {
+				if (res.properties[key as string] !== undefined) {
+					propResults[key] = res.properties[key as string] as ObjectTypes[T][K];
+				}
+			}
+
+			return { ...propResults, hs_object_id: res.id };
+		};
+	}
+
+	private updateObjectTypeFunction<T extends keyof ObjectTypes>(
+		type: keyof ObjectTypes,
+	) {
+		return async (objectId: string, properties: Partial<ObjectTypes[T]>) => {
+			await this.hubspotClient.crm.objects.basicApi.update(type, objectId, {
+				properties: {
+					...(properties as Record<string, string>),
+				},
+			});
+			return {};
+		};
+	}
+
+	private getAssociationsObjectTypeFunction<T extends ObjectKeys>(
+		sourceType: T,
+	) {
+		return async (
+			fromObjID: number,
+			toObjType: ObjectKeys,
+		): Promise<MultiAssociatedObjectWithLabel[]> => {
+			const fromTypeID = this.typeToObjectIDList[sourceType];
+			const toTypeID = this.typeToObjectIDList[toObjType];
+
+			const result =
+				await this.hubspotClient.crm.associations.v4.basicApi.getPage(
+					fromTypeID,
+					fromObjID,
+					toTypeID,
+				);
+			return result.results;
+		};
+	}
+
+	private associateObjectTypeFunction<FromObjType extends keyof ObjectTypes>(
+		sourceType: FromObjType,
+	) {
+		return async <
+			ToObjType extends keyof AssociationsConfigType[FromObjType] & ObjectKeys,
+		>(
+			fromObjID: number,
+			toObjID: number,
+			toObjType: ToObjType,
+			associationType: keyof AssociationsConfigType[FromObjType][ToObjType],
+		): Promise<void> => {
+			const fromTypeID = this.typeToObjectIDList[sourceType];
+			const toTypeID = this.typeToObjectIDList[toObjType];
+			const assocDetails = this.associationsConfig[sourceType][toObjType][
+				associationType
+			] as {
+				ID: number;
+				Category: AssociationSpecAssociationCategoryEnum;
+			};
+
+			if (!assocDetails) throw new Error("Invalid association type");
+
+			await this.hubspotClient.crm.associations.v4.basicApi.create(
+				fromTypeID,
+				fromObjID,
+				toTypeID,
+				toObjID,
+				[
+					{
+						associationTypeId: assocDetails.ID,
+						associationCategory: assocDetails.Category,
+					},
+				],
+			);
+		};
+	}
+
+	public api = {
+		{{- range $objectName, $schemaData := .ObjectNameToType }}
+		{{- if $schemaData.Description }}
+		/** {{$schemaData.Description}} */
+		{{- end }}
+		{{ $objectName }}: {
+			get: this.getObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			create: this.createObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			update: this.updateObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			getAssociations: this.getAssociationsObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			associate: this.associateObjectTypeFunction("{{$objectName}}"),
+  	},
+		{{ end }}
+	}
+}
+
+export default function NewHubspotClientFactory(portalName: Portals, token: string) {
+	switch (portalName) {
+		{{- range $internalName, $displayName := .PortalNames }}
+		case Portals.{{ $displayName }}:
+			return new HubspotClient(
+				token,
+				{{ $displayName }}TypeToObjectIDList,
+				{{ $displayName }}AssociationsConfig,
+			);
+		{{- end }}
+		default:
+			throw new Error("Invalid portal name");
+	}
+}

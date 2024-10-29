@@ -1,4 +1,4 @@
-package codegen
+package portal
 
 var categoryMap = map[string]string{
 	"HUBSPOT_DEFINED":    "HubspotDefined",

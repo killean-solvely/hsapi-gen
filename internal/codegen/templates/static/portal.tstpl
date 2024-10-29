@@ -1,0 +1,35 @@
+import { AssociationsConfigType } from "./Shared";
+
+// Configuration for {{ .PortalName }} associations
+export const {{ .PortalName }}AssociationsConfig: AssociationsConfigType & any = {
+  {{- range $fromObjName, $secondLayer := .AssociationTypes }}
+  {{ $fromObjName }}: {
+    {{- range $toObjName, $labels := $secondLayer }}
+    {{ $toObjName }}: {
+      {{- range $label, $assocData := $labels }}
+      {{ $label}}: {
+        {{- if $assocData.SanitizedLabel }}
+        {{ $assocData.SanitizedLabel }}: {
+          ID: {{ $assocData.ID }},
+          Category: "{{ $assocData.Category }}",
+        },
+        {{- else }}
+        {{ $fromObjName }}_to_{{ $toObjName }}: {
+          ID: {{ $assocData.ID }},
+          Category: "{{ $assocData.Category }}",
+        },
+        {{- end }}
+      },
+      {{- end }}
+    },
+    {{- end }}
+  },
+  {{- end }}
+} as const;
+
+// Mapping of object types to their IDs for {{ .PortalName }}
+export const {{ .PortalName }}TypeToObjectIDList = {
+  {{- range $objectName, $objectID := .Objects }}
+  {{ $objectName }}: "{{ $objectID }}",
+  {{- end }}
+} as const;

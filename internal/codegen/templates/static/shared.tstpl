@@ -1,0 +1,50 @@
+const ObjectKeys = [
+  {{- range .Objects }}
+  "{{ .InternalName }}",
+  {{- end }}
+] as const;
+export type ObjectKeys = (typeof ObjectKeys)[number];
+
+type AssocConfigType = {
+  ID: number;
+  Category: string;
+};
+
+export type AssociationsConfigType = {
+  {{- range $fromObjName, $secondLayer := .AssociationTypes }}
+  {{ $fromObjName }}: {
+    {{- range $toObjName, $labels := $secondLayer }}
+    {{ $toObjName }}: {
+      {{- range $label, $assocData := $labels }}
+      {{ $label }}: AssocConfigType;
+      {{- end }}
+    },
+    {{- end }}
+  };
+  {{- end }}
+};
+
+{{- range .Enums }}
+export enum {{ .Name }} {
+  {{- range $name, $value := .Values }}
+  {{ $name }} = "{{ $value }}",
+  {{- end}}
+}
+{{- end}}
+
+{{- range .Objects }}
+interface {{ .Name }} {
+  {{- range .Properties }}
+  {{- if .Comment }}
+  /** {{ .Comment }} **/
+  {{- end }}
+  {{ .Name }}: {{ .Type }};
+  {{- end }}
+}
+{{- end}}
+
+export interface ObjectTypes {
+{{- range .Objects }}
+  {{ .InternalName }}: {{ .Name }};
+{{- end }}
+}

@@ -1,40 +1,113 @@
 package codegen
 
 import (
-	"embed"
 	"fmt"
 	"os"
-	"strings"
+	"path"
+
+	"github.com/killean-solvely/hsapi-gen/internal/codegen/portal"
+	"github.com/killean-solvely/hsapi-gen/internal/codegen/templates"
 )
 
-//go:embed snippets/*
-var snippets embed.FS
-
 type Codegen struct {
-	hsToken string
-
-	Schemas          []Schema
-	AssociationTypes map[string]map[string]map[string]AssociationType
-	ObjectNameToType map[string]SchemaData
-	CodeSections     []string
+	PortalDefinitions []portal.PortalDefinition
 }
 
-func NewCodegen(hsToken string) *Codegen {
-	return &Codegen{hsToken: hsToken}
+func NewCodegen() *Codegen {
+	return &Codegen{
+		PortalDefinitions: []portal.PortalDefinition{},
+	}
 }
 
-func (c Codegen) GenerateAndSave(path string) error {
-	err := c.getHubspotData()
+// Adds the portal to the list of portals to be processed
+func (c *Codegen) AddPortal(portalName, token string) {
+	c.PortalDefinitions = append(
+		c.PortalDefinitions,
+		*portal.NewPortalDefinition(portalName, token),
+	)
+}
+
+func (c Codegen) GenerateCode(outfolder string) error {
+	err := c.loadPortals()
 	if err != nil {
 		return err
 	}
 
-	err = c.generateCode()
+	sharedPD := c.createSharedPortalDefinition()
+
+	return c.generateFiles(outfolder, sharedPD)
+}
+
+// Loads the portal definitions from the HubSpot API, or file if available
+func (c *Codegen) loadPortals() error {
+	for i := range c.PortalDefinitions {
+		err := c.PortalDefinitions[i].LoadPortalDefinition()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Prepares a combined portal definition for the shared template
+func (c Codegen) createSharedPortalDefinition() *portal.PortalDefinition {
+	return &c.PortalDefinitions[0]
+}
+
+// Generates the code for the portals
+func (c Codegen) generateFiles(outfolder string, sharedPD *portal.PortalDefinition) error {
+	// Check to see if the output folder exists
+	if _, err := os.Stat(outfolder); os.IsNotExist(err) {
+		// Create the output folder
+		err := os.Mkdir(outfolder, 0755)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Generate the client code
+	fmt.Println("Generating Client Code...")
+	clientCode, err := c.generateClientCode(sharedPD)
 	if err != nil {
 		return err
 	}
 
-	err = c.SaveToFile(path)
+	// Write the client code to a file
+	err = os.WriteFile(path.Clean(outfolder+"/"+"client.ts"), []byte(clientCode), 0644)
+	if err != nil {
+		return err
+	}
+
+	// Generate the code for the portals
+	fmt.Println("Generating Portal Code...")
+	for i := range c.PortalDefinitions {
+		fmt.Printf("Processing portal %s...\n", c.PortalDefinitions[i].PortalName)
+		portalCode, err := c.generatePortalCode(&c.PortalDefinitions[i])
+		if err != nil {
+			return err
+		}
+
+		// Write the portal code to a file
+		err = os.WriteFile(
+			path.Clean(outfolder+"/"+c.PortalDefinitions[i].PortalName+".ts"),
+			[]byte(portalCode),
+			0644,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Generate the code for the shared types
+	fmt.Println("Generating Shared Code...")
+	sharedCode, err := c.generateSharedCode(sharedPD)
+	if err != nil {
+		return err
+	}
+
+	// Write the shared code to a file
+	err = os.WriteFile(path.Clean(outfolder+"/"+"shared.ts"), []byte(sharedCode), 0644)
 	if err != nil {
 		return err
 	}
@@ -42,240 +115,50 @@ func (c Codegen) GenerateAndSave(path string) error {
 	return nil
 }
 
-// Gets the schemas and association types from hubspot
-func (c *Codegen) getHubspotData() error {
-	schemas, err := c.getAllSchemas()
-	if err != nil {
-		return err
-	}
-	c.Schemas = schemas
-
-	associationTypes, err := c.getAssociationTypes(schemas)
-	if err != nil {
-		return err
-	}
-	c.AssociationTypes = associationTypes
-
-	return nil
-}
-
-func (c *Codegen) generateCode() error {
-	importAndConstantsContent, err := snippets.ReadFile("snippets/importsAndConstants.ts")
-	if err != nil {
-		return err
+func (c Codegen) generateClientCode(sharedPD *portal.PortalDefinition) (string, error) {
+	portalNames := map[string]string{}
+	for _, pd := range c.PortalDefinitions {
+		portalNames[pd.PortalName] = pd.PortalName
 	}
 
-	importsAndConstants := string(importAndConstantsContent)
-	assocConfigCode := c.generateAssocConfigCode()
-	c.ObjectNameToType = c.mapSchemaData()
-	objectTypesCode := c.generateObjectTypesCode()
-	typeToObjectIDCode := c.generateTypeToObjectIDListCode()
-	hubspotClientCode, err := c.generateHubspotClientCode()
-	if err != nil {
-		return err
-	}
-
-	c.CodeSections = []string{
-		importsAndConstants,
-		assocConfigCode,
-		objectTypesCode,
-		typeToObjectIDCode,
-		hubspotClientCode,
-	}
-
-	return nil
-}
-
-func (c Codegen) SaveToFile(path string) error {
-	fullCode := strings.Join(c.CodeSections, "\n")
-
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-
-	_, err = f.WriteString(fullCode)
-	if err != nil {
-		return err
-	}
-
-	f.Close()
-
-	return nil
-}
-
-func (c *Codegen) generateHubspotClientCode() (string, error) {
-	functionBuildersContent, err := snippets.ReadFile("snippets/functionBuilders.ts")
+	fileData, err := templates.GenerateClient(templates.HubspotClientTemplateInput{
+		PortalNames:      portalNames,
+		ObjectNameToType: sharedPD.ObjectNameToType,
+	})
 	if err != nil {
 		return "", err
 	}
-	functionBuilders := string(functionBuildersContent)
 
-	sdkCode := "\n\tpublic api = {\n"
-	for objectName, schemaData := range c.ObjectNameToType {
-		if schemaData.Description != "" {
-			sdkCode += fmt.Sprintf("\t\t/** %s */\n", schemaData.Description)
-		}
-		sdkCode += fmt.Sprintf("\t\t%s: {\n", objectName)
-		sdkCode += fmt.Sprintf(
-			"\t\t\tget: this.getObjectTypeFunction<\"%s\">(\"%s\"),\n",
-			objectName,
-			objectName,
-		)
-		sdkCode += fmt.Sprintf(
-			"\t\t\tcreate: this.createObjectTypeFunction<\"%s\">(\"%s\"),\n",
-			objectName,
-			objectName,
-		)
-		sdkCode += fmt.Sprintf(
-			"\t\t\tupdate: this.updateObjectTypeFunction<\"%s\">(\"%s\"),\n",
-			objectName,
-			objectName,
-		)
-		sdkCode += fmt.Sprintf(
-			"\t\t\tgetAssociations: this.getAssociationsObjectTypeFunction<\"%s\">(\"%s\"),\n",
-			objectName,
-			objectName,
-		)
-		sdkCode += fmt.Sprintf(
-			"\t\t\tassociate: this.associateObjectTypeFunction(\"%s\"),\n",
-			objectName,
-		)
-		sdkCode += "\t\t},\n"
-	}
-	sdkCode += "\t}\n"
-	sdkCode += "}\n"
-
-	return functionBuilders + sdkCode, nil
+	return fileData, nil
 }
 
-func (c *Codegen) generateTypeToObjectIDListCode() string {
-	typeToObjectIDCode := "const TypeToObjectIDList = {\n"
-	for objectName, schemaData := range c.ObjectNameToType {
-		typeToObjectIDCode += fmt.Sprintf("\t%s: \"%s\",\n", objectName, schemaData.ObjectID)
+func (c Codegen) generatePortalCode(p *portal.PortalDefinition) (string, error) {
+	objectMap := map[string]string{}
+	for _, obj := range p.Objects {
+		objectMap[obj.InternalName] = obj.ID
 	}
-	typeToObjectIDCode += "} as const;\n\n"
-	typeToObjectIDCode += "type TypeToObjectIDList = typeof TypeToObjectIDList;\n"
-	typeToObjectIDCode += "type TypeKeys = keyof TypeToObjectIDList;\n"
-	return typeToObjectIDCode
+
+	fileData, err := templates.GeneratePortal(templates.PortalTemplateInput{
+		PortalName:       p.PortalName,
+		AssociationTypes: p.AssociationTypes,
+		Objects:          objectMap,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return fileData, nil
 }
 
-func (c *Codegen) generateObjectTypesCode() string {
-	schemaCodeSections := []string{}
-	for _, schema := range c.Schemas {
-		schemaEnums := ""
-		createdEnums := map[string]bool{}
-
-		lowerSchemaName := strings.ToLower(schema.Name)
-
-		schemaCode := fmt.Sprintf(
-			"interface %s {\n",
-			c.ObjectNameToType[lowerSchemaName].InterfaceName,
-		)
-		for _, prop := range schema.Properties {
-			propertyType := prop.Type
-			propertyLabel := prop.Label
-			propertyName := prop.Name
-
-			possibleEnumName := fmt.Sprintf(
-				"%s%s",
-				c.ObjectNameToType[lowerSchemaName].InterfaceName,
-				convertLabelToEnumName(propertyLabel),
-			)
-
-			isEnumeration := propertyType == "enumeration"
-			isEmptyEnumeration := len(prop.Options) == 0
-
-			propType, ok := typeConversionMap[propertyType]
-			if !ok {
-				propType = propertyType
-			}
-
-			if isEnumeration && !isEmptyEnumeration {
-				propType = possibleEnumName + "Enum"
-			} else if isEmptyEnumeration {
-				propType = "string"
-			}
-
-			if prop.Description != "" {
-				schemaCode += fmt.Sprintf("\t/** %s */\n", prop.Description)
-			}
-			schemaCode += fmt.Sprintf("\t%s: %s;\n", propertyName, propType)
-
-			_, enumExists := createdEnums[possibleEnumName]
-			if isEnumeration && !enumExists && !(isEnumeration && isEmptyEnumeration) {
-				createdEnums[possibleEnumName] = true
-
-				schemaEnums += fmt.Sprintf("export enum %sEnum {\n", possibleEnumName)
-				for _, option := range prop.Options {
-					sanitizedOptionLabel := sanitizeLabel(option.Label)
-					if sanitizedOptionLabel == "" {
-						sanitizedOptionLabel = "_"
-					}
-					schemaEnums += fmt.Sprintf(
-						"\t%s = \"%s\",\n",
-						prependUnderscoreToEnum(sanitizedOptionLabel),
-						strings.ReplaceAll(option.Value, "\"", "\\\""),
-					)
-				}
-				schemaEnums += "}\n\n"
-			}
-		}
-
-		schemaCode += "}\n"
-
-		finalCode := schemaEnums + schemaCode
-		schemaCodeSections = append(schemaCodeSections, finalCode)
+func (c Codegen) generateSharedCode(sharedPD *portal.PortalDefinition) (string, error) {
+	fileData, err := templates.GenerateShared(templates.SharedTemplateInput{
+		AssociationTypes: sharedPD.AssociationTypes,
+		Enums:            sharedPD.Enums,
+		Objects:          sharedPD.Objects,
+	})
+	if err != nil {
+		return "", err
 	}
 
-	objectTypesCode := "interface ObjectTypes {\n"
-	for objectName, schemaData := range c.ObjectNameToType {
-		objectTypesCode += fmt.Sprintf("\t%s: %s;\n", objectName, schemaData.InterfaceName)
-	}
-	objectTypesCode += "}\n"
-
-	schemaCodeSections = append(schemaCodeSections, objectTypesCode)
-
-	return strings.Join(schemaCodeSections, "\n")
-}
-
-func (c *Codegen) mapSchemaData() map[string]SchemaData {
-	objectNameToType := map[string]SchemaData{}
-	for _, schema := range c.Schemas {
-		objectNameToType[strings.ToLower(schema.Name)] = SchemaData{
-			InterfaceName: fmt.Sprintf("%sProps", convertSchemaNameToInterfaceName(schema.Name)),
-			Description:   schema.Description,
-			ObjectID:      schema.ObjectTypeID,
-		}
-	}
-	return objectNameToType
-}
-
-func (c *Codegen) generateAssocConfigCode() string {
-	assocTypesCode := "const AssociationsConfig = {\n"
-	for objName, otherObjAssocMap := range c.AssociationTypes {
-		assocTypesCode += fmt.Sprintf("\t%s: {\n", objName)
-		for otherObjName, assocOptions := range otherObjAssocMap {
-			if len(assocOptions) == 0 {
-				continue
-			}
-
-			assocTypesCode += fmt.Sprintf("\t\t%s: {\n", otherObjName)
-			for assocTypeStr, assocData := range assocOptions {
-				assocTypesCode += fmt.Sprintf("\t\t\t%s: {\n", assocTypeStr)
-				assocTypesCode += fmt.Sprintf("\t\t\t\tID: %d,\n", assocData.ID)
-				assocTypesCode += fmt.Sprintf(
-					"\t\t\t\tCategory: AssociationSpecAssociationCategoryEnum.%s,\n",
-					categoryMap[assocData.Category],
-				)
-				assocTypesCode += "\t\t\t},\n"
-			}
-			assocTypesCode += "\t\t},\n"
-		}
-		assocTypesCode += "\t},\n"
-	}
-	assocTypesCode += "} as const;\n\n"
-	assocTypesCode += "type AssociationsConfig = typeof AssociationsConfig;\n"
-	assocTypesCode += "type AssociationKeys<F extends keyof AssociationsConfig, T extends keyof AssociationsConfig[F]> = keyof AssociationsConfig[F][T];"
-	return assocTypesCode
+	return fileData, nil
 }

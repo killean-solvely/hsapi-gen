@@ -1,4 +1,4 @@
-package codegen
+package utils
 
 import (
 	"regexp"
@@ -6,8 +6,8 @@ import (
 	"unicode"
 )
 
-// sanitizeLabel removes special characters, replaces spaces with underscores, and converts to lowercase.
-func sanitizeLabel(input string) string {
+// SanitizeLabel removes special characters, replaces spaces with underscores, and converts to lowercase.
+func SanitizeLabel(input string) string {
 	if input == "" {
 		return "_"
 	}
@@ -18,8 +18,8 @@ func sanitizeLabel(input string) string {
 	return input
 }
 
-// convertSchemaNameToInterfaceName removes special characters, converts to lowercase, capitalizes first letter of each word, and joins them.
-func convertSchemaNameToInterfaceName(input string) string {
+// ConvertSchemaNameToInterfaceName removes special characters, converts to lowercase, capitalizes first letter of each word, and joins them.
+func ConvertSchemaNameToInterfaceName(input string) string {
 	reg, _ := regexp.Compile(`[^\w\s]`)
 	input = reg.ReplaceAllString(input, "")
 	input = strings.ToLower(input)
@@ -32,14 +32,14 @@ func convertSchemaNameToInterfaceName(input string) string {
 	return strings.Join(words, "")
 }
 
-// prependUnderscoreToEnum adds underscore to the beginning if the string starts with a digit.
-func prependUnderscoreToEnum(e string) string {
+// PrependUnderscoreToEnum adds underscore to the beginning if the string starts with a digit.
+func PrependUnderscoreToEnum(e string) string {
 	reg, _ := regexp.Compile(`^(\d)`)
 	return reg.ReplaceAllString(e, "_$1")
 }
 
-// convertLabelToEnumName removes special characters, converts to lowercase, capitalizes first letter of each word, and joins them.
-func convertLabelToEnumName(input string) string {
+// ConvertLabelToEnumName removes special characters, converts to lowercase, capitalizes first letter of each word, and joins them.
+func ConvertLabelToEnumName(input string) string {
 	reg, _ := regexp.Compile(`[^\w\s]`)
 	input = reg.ReplaceAllString(input, "")
 	input = strings.ToLower(input)
@@ -53,8 +53,8 @@ func convertLabelToEnumName(input string) string {
 }
 
 // strings.Title is not directly analogous to TypeScript's `charAt(0).toUpperCase()` as it capitalizes each
-// word in the string. We define a proper toFirstUpper function.
-func toFirstUpper(word string) string {
+// word in the string. We define a proper ToFirstUpper function.
+func ToFirstUpper(word string) string {
 	for i, v := range word {
 		return string(unicode.ToUpper(v)) + word[i+1:]
 	}

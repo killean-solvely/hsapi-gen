@@ -1,32 +1,54 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/killean-solvely/hsapi-gen/internal/codegen"
 )
 
+type Config struct {
+	Outfolder string `json:"outfolder"`
+	Schemas   []struct {
+		Name  string `json:"name"`
+		Token string `json:"token"`
+	} `json:"schemas"`
+}
+
 func main() {
-	hsTokenPtr := flag.String("token", "", "HubSpot API token")
-	pathPtr := flag.String("path", "", "Path to save the generated file")
+	configPathPtr := flag.String("config", "", "Path to the configuration file")
 
 	flag.Parse()
 
-	if *hsTokenPtr == "" {
-		fmt.Println("Token is required. Use -token to provide the HubSpot API token.")
-		return
+	if *configPathPtr == "" {
+		fmt.Println(
+			"Config is required. Use -config to provide the path to the configuration file.",
+		)
+		panic("Config is required")
 	}
 
-	if *pathPtr == "" {
-		fmt.Println("Path is required. Use -path to provide the path to save the generated file.")
-		return
+	// Load the configuration file
+	data, err := os.ReadFile(*configPathPtr)
+	if err != nil {
+		panic(err)
+	}
+
+	var config Config
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		panic(err)
 	}
 
 	fmt.Println("Starting code generation")
 
-	codegen := codegen.NewCodegen(*hsTokenPtr)
-	err := codegen.GenerateAndSave(*pathPtr)
+	codegen := codegen.NewCodegen()
+	for _, s := range config.Schemas {
+		codegen.AddPortal(s.Name, s.Token)
+	}
+
+	err = codegen.GenerateCode(config.Outfolder)
 	if err != nil {
 		panic(err)
 	}

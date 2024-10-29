@@ -1,12 +1,6 @@
-package codegen
+package hs
 
 import "time"
-
-type SchemaData struct {
-	InterfaceName string
-	Description   string
-	ObjectID      string
-}
 
 // SchemaResponse represents the response from HubSpot CRM's object schema API
 type SchemaResponse struct {
