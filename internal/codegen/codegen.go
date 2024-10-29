@@ -122,8 +122,7 @@ func intersectObjectNameToTypeAcrossPortals(
 	for _, portalDef := range portals[1:] {
 		for typeName := range typeMap {
 			found := false
-			if schemaData, exists := portalDef.ObjectNameToType[typeName]; exists &&
-				schemaData == typeMap[typeName] {
+			if _, exists := portalDef.ObjectNameToType[typeName]; exists {
 				found = true
 			}
 			if !found {
