@@ -1,0 +1,13 @@
+{
+  "outfolder": "./generated/",
+  "schemas": [
+    {
+      "name": "production",
+      "token": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    },
+    {
+      "name": "staging",
+      "token": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    }
+  ]
+}
