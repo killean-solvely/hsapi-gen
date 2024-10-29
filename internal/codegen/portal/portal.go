@@ -59,11 +59,12 @@ func (pd *PortalDefinition) LoadPortalDefinition() error {
 		}
 		pd.AssociationTypes = associationTypes
 
-		fmt.Println("Saving API file...")
-		err = pd.saveAPIToFile()
-		if err != nil {
-			return err
-		}
+		// Disabled in production since people probably won't need this
+		// fmt.Println("Saving API file...")
+		// err = pd.saveAPIToFile()
+		// if err != nil {
+		// 	return err
+		// }
 	} else {
 		fmt.Println("Loading API file...")
 		// If it does exist, load the api file
