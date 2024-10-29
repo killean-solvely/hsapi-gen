@@ -157,8 +157,7 @@ func intersectAssociationTypesAcrossPortals(
 			for secondaryType, innerMap := range subMap {
 				for assocName := range innerMap {
 					// Check if the association exists in the current portal
-					if assoc, exists := portalDef.AssociationTypes[primaryType][secondaryType][assocName]; !exists ||
-						assoc != assocTypeMap[primaryType][secondaryType][assocName] {
+					if _, exists := portalDef.AssociationTypes[primaryType][secondaryType][assocName]; !exists {
 						delete(assocTypeMap[primaryType][secondaryType], assocName)
 					}
 				}
