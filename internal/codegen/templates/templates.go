@@ -35,6 +35,7 @@ func generateCode[T any](input T, templatePath string) (string, error) {
 type HubspotClientTemplateInput struct {
 	PortalNames      map[string]string
 	ObjectNameToType map[string]portal.SchemaData
+	AssociationTypes map[string]map[string]map[string]portal.Association
 }
 
 func GenerateClient(input HubspotClientTemplateInput) (string, error) {

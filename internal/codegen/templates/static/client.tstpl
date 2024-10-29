@@ -117,7 +117,7 @@ export class HubspotClient {
 		};
 	}
 
-	private associateObjectTypeFunction<FromObjType extends keyof ObjectTypes>(
+	private associateObjectTypeFunction<FromObjType extends keyof AssociationsConfigType>(
 		sourceType: FromObjType,
 	) {
 		return async <
@@ -164,7 +164,9 @@ export class HubspotClient {
 			create: this.createObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
 			update: this.updateObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
 			getAssociations: this.getAssociationsObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			{{- if index $.AssociationTypes $objectName }}
 			associate: this.associateObjectTypeFunction("{{$objectName}}"),
+			{{- end }}
   	},
 		{{ end }}
 	}
