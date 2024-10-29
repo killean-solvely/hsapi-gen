@@ -11,7 +11,7 @@ import {
 } from "./{{ $displayName }}"
 {{- end }}
 
-enum Portals {
+export enum Portals {
 	{{- range $internalName, $displayName := .PortalNames }}
   {{ $displayName }} = "{{ $internalName }}",
   {{- end }}
