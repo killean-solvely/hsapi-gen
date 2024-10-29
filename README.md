@@ -1,6 +1,6 @@
 # hsapi-gen
 
-Generates a .ts file with all of the relevant types for your Hubspot portal.
+Generates a .ts file with all of the relevant types for your Hubspot portals.
 
 ## Usage
 
@@ -8,14 +8,39 @@ Generates a .ts file with all of the relevant types for your Hubspot portal.
 
 You can download the latest binary from the releases page, run it through go, or compile it from the source.
 
+### Setup
+
+Create a config file with the following structure:
+
+```json
+{
+  "outfolder": "./generated/",
+  "schemas": [
+    {
+      "name": "production",
+      "token": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    },
+    {
+      "name": "staging",
+      "token": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    }
+  ]
+}
+```
+
+- `outfolder` is the folder where the generated files will be saved.
+- `schemas` is an array of objects that represent the different Hubspot portals you want to generate types for.
+  - `name` is the name of the portal.
+  - `token` is the API key for the portal.
+
 ### Run
 
-Locally
-`hsapi-gen -token <your-hubspot-api-token> -path <path-to-output-file>`
+Locally after downloading the binary
+`hsapi-gen -config path-to-your-config.json`
 
 Through Go
 `go install github.com/killean-solvely/hsapi-gen/cmd/hsapi-gen`
-`hsapi-gen -token <your-hubspot-api-token> -path <path-to-output-file>`
+`hsapi-gen -config path-to-your-config.json`
 
 ## TODO
 
