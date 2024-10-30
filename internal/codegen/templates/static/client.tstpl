@@ -182,7 +182,7 @@ export class HubspotClient {
 	}
 }
 
-export default function NewHubspotClientFactory(portalName: Portals, token: string) {
+export function NewHubspotClientFactory(portalName: Portals, token: string) {
 	switch (portalName) {
 		{{- range $internalName, $displayName := .PortalNames }}
 		case Portals.{{ $displayName }}:
