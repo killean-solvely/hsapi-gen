@@ -17,9 +17,7 @@ export enum Portals {
   {{- end }}
 }
 
-export class HubspotClient {
-	private hubspotClient: hubspot.Client;
-
+export class HubspotClient extends hubspot.Client {
 	constructor(
 		token: string,
 		private typeToObjectIDList: Record<ObjectKeys, string>,
@@ -29,7 +27,7 @@ export class HubspotClient {
 			throw new Error("No token provided");
 		}
 
-		this.hubspotClient = new hubspot.Client({
+		super({
 			accessToken: token,
 		});
 	}
@@ -41,7 +39,7 @@ export class HubspotClient {
 			objectId: string,
 			properties: K[],
 		): Promise<Pick<ObjectTypes[T], K>> => {
-			const res = await this.hubspotClient.crm.objects.basicApi.getById(
+			const res = await this.crm.objects.basicApi.getById(
 				this.typeToObjectIDList[type],
 				objectId,
 				properties as string[],
@@ -67,7 +65,7 @@ export class HubspotClient {
 				hs_object_id: string;
 			}
 		> => {
-			const res = await this.hubspotClient.crm.objects.basicApi.create(
+			const res = await this.crm.objects.basicApi.create(
 			  this.typeToObjectIDList[type], 
 			  {
 				  properties: properties as Record<string, string>,
@@ -91,7 +89,7 @@ export class HubspotClient {
 		type: keyof ObjectTypes,
 	) {
 		return async (objectId: string, properties: Partial<ObjectTypes[T]>) => {
-			await this.hubspotClient.crm.objects.basicApi.update(
+			await this.crm.objects.basicApi.update(
 			  this.typeToObjectIDList[type], 
 			  objectId, 
 			  {
@@ -115,7 +113,7 @@ export class HubspotClient {
 			const toTypeID = this.typeToObjectIDList[toObjType];
 
 			const result =
-				await this.hubspotClient.crm.associations.v4.basicApi.getPage(
+				await this.crm.associations.v4.basicApi.getPage(
 					fromTypeID,
 					fromObjID,
 					toTypeID,
@@ -149,7 +147,7 @@ export class HubspotClient {
 
 			if (!assocDetails) throw new Error("Invalid association type");
 
-			await this.hubspotClient.crm.associations.v4.basicApi.create(
+			await this.crm.associations.v4.basicApi.create(
 				fromTypeID,
 				fromObjID,
 				toTypeID,
