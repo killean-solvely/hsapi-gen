@@ -42,7 +42,7 @@ export class HubspotClient {
 			properties: K[],
 		): Promise<Pick<ObjectTypes[T], K>> => {
 			const res = await this.hubspotClient.crm.objects.basicApi.getById(
-				type,
+				this.typeToObjectIDList[type],
 				objectId,
 				properties as string[],
 			);
@@ -67,10 +67,13 @@ export class HubspotClient {
 				hs_object_id: string;
 			}
 		> => {
-			const res = await this.hubspotClient.crm.objects.basicApi.create(type, {
-				properties: properties as Record<string, string>,
-				associations: [],
-			});
+			const res = await this.hubspotClient.crm.objects.basicApi.create(
+			  this.typeToObjectIDList[type], 
+			  {
+				  properties: properties as Record<string, string>,
+				  associations: [],
+			  },
+			);
 
 			const propResults = {} as Pick<ObjectTypes[T], K>;
 
@@ -88,11 +91,15 @@ export class HubspotClient {
 		type: keyof ObjectTypes,
 	) {
 		return async (objectId: string, properties: Partial<ObjectTypes[T]>) => {
-			await this.hubspotClient.crm.objects.basicApi.update(type, objectId, {
-				properties: {
-					...(properties as Record<string, string>),
-				},
-			});
+			await this.hubspotClient.crm.objects.basicApi.update(
+			  this.typeToObjectIDList[type], 
+			  objectId, 
+			  {
+				  properties: {
+					  ...(properties as Record<string, string>),
+				  },
+			  },
+			);
 			return {};
 		};
 	}
