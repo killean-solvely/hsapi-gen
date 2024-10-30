@@ -132,10 +132,13 @@ export class HubspotClient {
 			const toTypeID = this.typeToObjectIDList[toObjType];
 			const assocDetails = this.associationsConfig[sourceType][toObjType][
 				associationType
-			] as {
-				ID: number;
-				Category: AssociationSpecAssociationCategoryEnum;
-			};
+      ] as Record<
+        typeof associationType,
+        {
+          ID: number;
+          Category: AssociationSpecAssociationCategoryEnum;
+        }
+      >;
 
 			if (!assocDetails) throw new Error("Invalid association type");
 
@@ -146,8 +149,8 @@ export class HubspotClient {
 				toObjID,
 				[
 					{
-						associationTypeId: assocDetails.ID,
-						associationCategory: assocDetails.Category,
+						associationTypeId: assocDetails[associationType].ID,
+						associationCategory: assocDetails[associationType].Category,
 					},
 				],
 			);
