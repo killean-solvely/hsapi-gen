@@ -1,4 +1,4 @@
-import { AssociationsConfigType } from "./Shared";
+import { AssociationsConfigType } from "./shared";
 
 // Configuration for {{ .PortalName }} associations
 export const {{ .PortalName }}AssociationsConfig: AssociationsConfigType & any = {
