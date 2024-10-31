@@ -4,11 +4,12 @@ import {
   AssociationSpecAssociationCategoryEnum,
   MultiAssociatedObjectWithLabel,
 } from "@hubspot/api-client/lib/codegen/crm/associations/v4";
+import { ValueWithTimestamp } from "@hubspot/api-client/lib/codegen/crm/objects";
 {{- range $internalName, $displayName := .PortalNames }}
 import {
 	{{ $displayName }}AssociationsConfig,
 	{{ $displayName }}TypeToObjectIDList,
-} from "./{{ $displayName }}"
+} from "./{{ $displayName }}";
 {{- end }}
 
 export enum Portals {
@@ -32,111 +33,250 @@ export class HubspotClient extends hubspot.Client {
 		});
 	}
 
-	private getObjectTypeFunction<T extends keyof ObjectTypes>(
-		type: keyof ObjectTypes,
-	) {
-		return async <K extends keyof ObjectTypes[T]>(
-			objectId: string,
-			properties: K[],
-		): Promise<Pick<ObjectTypes[T], K>> => {
-			const res = await this.crm.objects.basicApi.getById(
-				this.typeToObjectIDList[type],
-				objectId,
-				properties as string[],
-			);
+  private getObjectTypeFunction<T extends keyof ObjectTypes>(
+    type: keyof ObjectTypes,
+  ) {
+    return async <K extends keyof ObjectTypes[T]>(
+      objectId: string,
+      properties: K[],
+      propertiesWithHistory?: K[],
+    ): Promise<Pick<ObjectTypes[T], K>> => {
+      const res = await this.crm.objects.basicApi.getById(
+        this.typeToObjectIDList[type],
+        objectId,
+        properties as string[],
+        propertiesWithHistory as string[],
+      );
 
-			const propResults: Pick<ObjectTypes[T], K> = res.properties as Pick<
-				ObjectTypes[T],
-				K
-			>;
+      const propResults: Pick<ObjectTypes[T], K> = res.properties as Pick<
+        ObjectTypes[T],
+        K
+      >;
 
-			return propResults;
-		};
-	}
+      res.propertiesWithHistory;
 
-	private createObjectTypeFunction<T extends keyof ObjectTypes>(
-		type: keyof ObjectTypes,
-	) {
-		return async <K extends keyof ObjectTypes[T]>(
-			properties: Pick<ObjectTypes[T], K>,
-		): Promise<
-			Pick<ObjectTypes[T], K> & {
-				/** The unique ID for this record. This value is set automatically by HubSpot. */
-				hs_object_id: string;
-			}
-		> => {
-			const res = await this.crm.objects.basicApi.create(
-			  this.typeToObjectIDList[type], 
-			  {
-				  properties: properties as Record<string, string>,
-				  associations: [],
-			  },
-			);
+      return propResults;
+    };
+  }
 
-			const propResults = {} as Pick<ObjectTypes[T], K>;
+  private getObjectWithHistoryTypeFunction<T extends keyof ObjectTypes>(
+    type: T,
+  ) {
+    return async <K extends keyof ObjectTypes[T]>(
+      objectId: string,
+      properties: K[],
+    ): Promise<{
+      [key in K]: {
+        value: ObjectTypes[T][key];
+        history: ValueWithTimestamp[];
+      };
+    }> => {
+      const res = await this.crm.objects.basicApi.getById(
+        this.typeToObjectIDList[type],
+        objectId,
+        properties as string[],
+        properties as string[],
+      );
 
-			for (const key of Object.keys(properties) as K[]) {
-				if (res.properties[key as string] !== undefined) {
-					propResults[key] = res.properties[key as string] as ObjectTypes[T][K];
-				}
-			}
+      const propResults = {} as {
+        [key in K]: {
+          value: ObjectTypes[T][key];
+          history: ValueWithTimestamp[];
+        };
+      };
 
-			return { ...propResults, hs_object_id: res.id };
-		};
-	}
+      for (const key of properties) {
+        propResults[key] = {
+          value: res.properties[key as string] as ObjectTypes[T][K],
+          history: res.propertiesWithHistory
+            ? res.propertiesWithHistory[key as string]
+            : [],
+        };
+      }
 
-	private updateObjectTypeFunction<T extends keyof ObjectTypes>(
-		type: keyof ObjectTypes,
-	) {
-		return async (objectId: string, properties: Partial<ObjectTypes[T]>) => {
-			await this.crm.objects.basicApi.update(
-			  this.typeToObjectIDList[type], 
-			  objectId, 
-			  {
-				  properties: {
-					  ...(properties as Record<string, string>),
-				  },
-			  },
-			);
-			return {};
-		};
-	}
+      return propResults;
+    };
+  }
 
-	private getAssociationsObjectTypeFunction<T extends ObjectKeys>(
-		sourceType: T,
-	) {
-		return async (
-			fromObjID: number,
-			toObjType: ObjectKeys,
-		): Promise<MultiAssociatedObjectWithLabel[]> => {
-			const fromTypeID = this.typeToObjectIDList[sourceType];
-			const toTypeID = this.typeToObjectIDList[toObjType];
+  private getBatchObjectTypeFunction<T extends keyof ObjectTypes>(
+    type: keyof ObjectTypes,
+  ) {
+    return async <K extends keyof ObjectTypes[T]>(
+      objectIds: string[],
+      properties: K[],
+    ): Promise<
+      (Pick<ObjectTypes[T], K> & {
+        hs_object_id: string;
+      })[]
+    > => {
+      const res = await this.crm.objects.batchApi.read(
+        this.typeToObjectIDList[type],
+        {
+          inputs: objectIds.map((id) => {
+            return {
+              id: id,
+            };
+          }),
+          properties: properties as string[],
+          propertiesWithHistory: [],
+        },
+      );
 
-			const result =
-				await this.crm.associations.v4.basicApi.getPage(
-					fromTypeID,
-					fromObjID,
-					toTypeID,
-				);
-			return result.results;
-		};
-	}
+      const propResults: (Pick<ObjectTypes[T], K> & {
+        hs_object_id: string;
+      })[] = res.results.map((result) => {
+        return {
+          ...(result.properties as Pick<ObjectTypes[T], K>),
+          hs_object_id: result.id,
+        };
+      });
 
-	private associateObjectTypeFunction<FromObjType extends keyof AssociationsConfigType>(
-		sourceType: FromObjType,
-	) {
-		return async <
-			ToObjType extends keyof AssociationsConfigType[FromObjType] & ObjectKeys,
-		>(
-			fromObjID: number,
-			toObjID: number,
-			toObjType: ToObjType,
-			associationType: keyof AssociationsConfigType[FromObjType][ToObjType],
-		): Promise<void> => {
-			const fromTypeID = this.typeToObjectIDList[sourceType];
-			const toTypeID = this.typeToObjectIDList[toObjType];
-			const assocDetails = this.associationsConfig[sourceType][toObjType][
-				associationType
+      return propResults;
+    };
+  }
+
+  private createObjectTypeFunction<T extends keyof ObjectTypes>(
+    type: keyof ObjectTypes,
+  ) {
+    return async <K extends keyof ObjectTypes[T]>(
+      properties: Pick<ObjectTypes[T], K>,
+    ): Promise<
+      Pick<ObjectTypes[T], K> & {
+        hs_object_id: string;
+      }
+    > => {
+      const res = await this.crm.objects.basicApi.create(
+        this.typeToObjectIDList[type],
+        {
+          properties: properties as Record<string, string>,
+          associations: [],
+        },
+      );
+
+      const propResults = {} as Pick<ObjectTypes[T], K>;
+
+      for (const key of Object.keys(properties) as K[]) {
+        if (res.properties[key as string] !== undefined) {
+          propResults[key] = res.properties[key as string] as ObjectTypes[T][K];
+        }
+      }
+
+      return { ...propResults, hs_object_id: res.id };
+    };
+  }
+
+  private createBatchObjectTypeFunction<T extends keyof ObjectTypes>(
+    type: keyof ObjectTypes,
+  ) {
+    return async <K extends keyof ObjectTypes[T]>(
+      objects: Pick<Partial<ObjectTypes[T]>, K>[],
+    ): Promise<
+      (Pick<ObjectTypes[T], K> & {
+        hs_object_id: string;
+      })[]
+    > => {
+      const res = await this.crm.objects.batchApi.create(
+        this.typeToObjectIDList[type],
+        {
+          inputs: objects.map((obj) => {
+            return {
+              properties: obj as Record<string, string>,
+              associations: [],
+            };
+          }),
+        },
+      );
+
+      const objResults: (Pick<ObjectTypes[T], K> & {
+        hs_object_id: string;
+      })[] = res.results.map((result) => {
+        const propResults = {} as Pick<ObjectTypes[T], K>;
+
+        for (const key of Object.keys(result.properties) as K[]) {
+          if (result.properties[key as string] !== undefined) {
+            propResults[key] = result.properties[
+              key as string
+            ] as ObjectTypes[T][K];
+          }
+        }
+
+        return { ...propResults, hs_object_id: result.id };
+      });
+
+      return objResults;
+    };
+  }
+
+  private updateObjectTypeFunction<T extends keyof ObjectTypes>(
+    type: keyof ObjectTypes,
+  ) {
+    return async (objectId: string, properties: Partial<ObjectTypes[T]>) => {
+      await this.crm.objects.basicApi.update(
+        this.typeToObjectIDList[type],
+        objectId,
+        {
+          properties: {
+            ...(properties as Record<string, string>),
+          },
+        },
+      );
+    };
+  }
+
+  private updateBatchObjectTypeFunction<T extends keyof ObjectTypes>(
+    type: keyof ObjectTypes,
+  ) {
+    return async (
+      objects: {
+        objectId: string;
+        properties: Partial<ObjectTypes[T]>;
+      }[],
+    ) => {
+      await this.crm.objects.batchApi.update(this.typeToObjectIDList[type], {
+        inputs: objects.map((obj) => {
+          return {
+            id: obj.objectId,
+            properties: obj.properties as Record<string, string>,
+          };
+        }),
+      });
+    };
+  }
+
+  private getAssociationsObjectTypeFunction<T extends ObjectKeys>(
+    sourceType: T,
+  ) {
+    return async (
+      fromObjID: number,
+      toObjType: ObjectKeys,
+    ): Promise<MultiAssociatedObjectWithLabel[]> => {
+      const fromTypeID = this.typeToObjectIDList[sourceType];
+      const toTypeID = this.typeToObjectIDList[toObjType];
+
+      const result = await this.crm.associations.v4.basicApi.getPage(
+        fromTypeID,
+        fromObjID,
+        toTypeID,
+      );
+      return result.results;
+    };
+  }
+
+  private associateObjectTypeFunction<
+    FromObjType extends keyof AssociationsConfigType,
+  >(sourceType: FromObjType) {
+    return async <
+      ToObjType extends keyof AssociationsConfigType[FromObjType] & ObjectKeys,
+    >(
+      fromObjID: number,
+      toObjID: number,
+      toObjType: ToObjType,
+      associationType: keyof AssociationsConfigType[FromObjType][ToObjType],
+    ): Promise<void> => {
+      const fromTypeID = this.typeToObjectIDList[sourceType];
+      const toTypeID = this.typeToObjectIDList[toObjType];
+      const assocDetails = this.associationsConfig[sourceType][toObjType][
+        associationType
       ] as Record<
         typeof associationType,
         {
@@ -145,22 +285,22 @@ export class HubspotClient extends hubspot.Client {
         }
       >;
 
-			if (!assocDetails) throw new Error("Invalid association type");
+      if (!assocDetails) throw new Error("Invalid association type");
 
-			await this.crm.associations.v4.basicApi.create(
-				fromTypeID,
-				fromObjID,
-				toTypeID,
-				toObjID,
-				[
-					{
-						associationTypeId: assocDetails[associationType].ID,
-						associationCategory: assocDetails[associationType].Category,
-					},
-				],
-			);
-		};
-	}
+      await this.crm.associations.v4.basicApi.create(
+        fromTypeID,
+        fromObjID,
+        toTypeID,
+        toObjID,
+        [
+          {
+            associationTypeId: assocDetails[associationType].ID,
+            associationCategory: assocDetails[associationType].Category,
+          },
+        ],
+      );
+    };
+  }
 
 	public api = {
 		{{- range $objectName, $schemaData := .ObjectNameToType }}
@@ -169,8 +309,12 @@ export class HubspotClient extends hubspot.Client {
 		{{- end }}
 		{{ $objectName }}: {
 			get: this.getObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			getWithHistory: this.getObjectWithHistoryTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			getBatch: this.getBatchObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
 			create: this.createObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			createBatch: this.createBatchObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
 			update: this.updateObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
+			updateBatch: this.updateBatchObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
 			getAssociations: this.getAssociationsObjectTypeFunction<"{{$objectName}}">("{{$objectName}}"),
 			{{- if index $.AssociationTypes $objectName }}
 			associate: this.associateObjectTypeFunction("{{$objectName}}"),
