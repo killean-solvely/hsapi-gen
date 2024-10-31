@@ -39,13 +39,11 @@ export class HubspotClient extends hubspot.Client {
     return async <K extends keyof ObjectTypes[T]>(
       objectId: string,
       properties: K[],
-      propertiesWithHistory?: K[],
     ): Promise<Pick<ObjectTypes[T], K>> => {
       const res = await this.crm.objects.basicApi.getById(
         this.typeToObjectIDList[type],
         objectId,
         properties as string[],
-        propertiesWithHistory as string[],
       );
 
       const propResults: Pick<ObjectTypes[T], K> = res.properties as Pick<
@@ -53,14 +51,12 @@ export class HubspotClient extends hubspot.Client {
         K
       >;
 
-      res.propertiesWithHistory;
-
       return propResults;
     };
   }
 
   private getObjectWithHistoryTypeFunction<T extends keyof ObjectTypes>(
-    type: T,
+    type: keyof ObjectTypes,
   ) {
     return async <K extends keyof ObjectTypes[T]>(
       objectId: string,
@@ -300,7 +296,6 @@ export class HubspotClient extends hubspot.Client {
         ],
       );
     };
-  }
 
 	public api = {
 		{{- range $objectName, $schemaData := .ObjectNameToType }}
