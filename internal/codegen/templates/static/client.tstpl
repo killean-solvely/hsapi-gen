@@ -58,15 +58,15 @@ export class HubspotClient extends hubspot.Client {
   private getObjectWithHistoryTypeFunction<T extends keyof ObjectTypes>(
     type: keyof ObjectTypes,
   ) {
+    type propWithHistory<K extends keyof ObjectTypes[T]> = {
+      value: ObjectTypes[T][K];
+      history: ValueWithTimestamp[];
+    };
+
     return async <K extends keyof ObjectTypes[T]>(
       objectId: string,
       properties: K[],
-    ): Promise<{
-      [key in K]: {
-        value: ObjectTypes[T][key];
-        history: ValueWithTimestamp[];
-      };
-    }> => {
+    ): Promise<Record<K, propWithHistory<K>>> => {
       const res = await this.crm.objects.basicApi.getById(
         this.typeToObjectIDList[type],
         objectId,
@@ -74,16 +74,13 @@ export class HubspotClient extends hubspot.Client {
         properties as string[],
       );
 
-      const propResults = {} as {
-        [key in K]: {
-          value: ObjectTypes[T][key];
-          history: ValueWithTimestamp[];
-        };
-      };
+      let propResults = {} as Record<K, propWithHistory<K>>;
 
       for (const key of properties) {
         propResults[key] = {
-          value: res.properties[key as string] as ObjectTypes[T][K],
+          value: res.properties[
+            key as keyof typeof res.properties
+          ] as ObjectTypes[T][K],
           history: res.propertiesWithHistory
             ? res.propertiesWithHistory[key as string]
             : [],
