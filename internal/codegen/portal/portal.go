@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -19,6 +20,7 @@ type PortalDefinition struct {
 	AssociationTypes map[string]map[string]map[string]Association `json:"association_types"`
 	ObjectNameToType map[string]SchemaData                        `json:"object_name_to_type"`
 	filename         string
+	logger           *log.Logger
 
 	Enums     []Enum            `json:"enums"`
 	Objects   []Object          `json:"objects"`
@@ -28,6 +30,8 @@ type PortalDefinition struct {
 func NewPortalDefinition(portalName, token string) *PortalDefinition {
 	filename := fmt.Sprintf("%s_api.json", portalName)
 	objectIDs := map[string]string{}
+	logger := log.New(os.Stdout, "["+portalName+"] ", 0)
+
 	return &PortalDefinition{
 		PortalName:       portalName,
 		Token:            token,
@@ -35,6 +39,7 @@ func NewPortalDefinition(portalName, token string) *PortalDefinition {
 		AssociationTypes: map[string]map[string]map[string]Association{},
 		ObjectNameToType: map[string]SchemaData{},
 		filename:         filename,
+		logger:           logger,
 		Enums:            []Enum{},
 		Objects:          []Object{},
 		ObjectIDs:        objectIDs,
@@ -45,7 +50,7 @@ func (pd *PortalDefinition) LoadPortalDefinition() error {
 	// Check to see if the api file exists
 	_, err := os.Stat(pd.filename)
 	if err != nil {
-		fmt.Println("Generating API file...")
+		pd.logger.Println("Generating API file...")
 		// If it doesn't exist, generate the api file
 		schemas, err := pd.getAllSchemas()
 		if err != nil {
@@ -60,13 +65,13 @@ func (pd *PortalDefinition) LoadPortalDefinition() error {
 		pd.AssociationTypes = associationTypes
 
 		// Disabled in production since people probably won't need this
-		// fmt.Println("Saving API file...")
+		// pd.logger.Println("Saving API file...")
 		// err = pd.saveAPIToFile()
 		// if err != nil {
 		// 	return err
 		// }
 	} else {
-		fmt.Println("Loading API file...")
+		pd.logger.Println("Loading API file...")
 		// If it does exist, load the api file
 		err = pd.loadAPIFromFile()
 		if err != nil {
@@ -74,44 +79,44 @@ func (pd *PortalDefinition) LoadPortalDefinition() error {
 		}
 	}
 
-	fmt.Println("Parsing API data...")
+	pd.logger.Println("Parsing API data...")
 	pd.parseData()
-	fmt.Println("API data parsed.")
+	pd.logger.Println("API data parsed.")
 
 	return nil
 }
 
 func (pd PortalDefinition) getAllSchemas() ([]hs.Schema, error) {
-	fmt.Println("Getting all schemas from portal...")
+	pd.logger.Println("Getting all schemas from portal...")
 
 	schemas := []hs.Schema{}
 
 	req, err := http.NewRequest("GET", "https://api.hubapi.com/crm-object-schemas/v3/schemas", nil)
 	if err != nil {
-		fmt.Printf("Failed to create request: %s\n", err)
+		pd.logger.Printf("Failed to create request: %s\n", err)
 		return nil, err
 	}
 	req.Header.Add("Authorization", "Bearer "+pd.Token)
 
-	fmt.Println("Getting custom schemas...")
+	pd.logger.Println("Getting custom schemas...")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Printf("Failed to send request: %s\n", err)
+		pd.logger.Printf("Failed to send request: %s\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Failed to read response body: %s\n", err)
+		pd.logger.Printf("Failed to read response body: %s\n", err)
 		return nil, err
 	}
 
 	var schemasResponse hs.SchemaResponse
 	err = json.Unmarshal(body, &schemasResponse)
 	if err != nil {
-		fmt.Printf("Failed to unmarshal response: %s\n", err)
+		pd.logger.Printf("Failed to unmarshal response: %s\n", err)
 		return nil, err
 	}
 
@@ -119,7 +124,7 @@ func (pd PortalDefinition) getAllSchemas() ([]hs.Schema, error) {
 		schemas = append(schemas, schemasResponse.Results[i])
 	}
 
-	fmt.Println("Custom schemas retrieved.")
+	pd.logger.Println("Custom schemas retrieved.")
 
 	objectTypes := []string{
 		"call",
@@ -148,10 +153,10 @@ func (pd PortalDefinition) getAllSchemas() ([]hs.Schema, error) {
 		"ticket",
 	}
 
-	fmt.Printf("Getting %d default schemas...\n", len(objectTypes))
+	pd.logger.Printf("Getting %d default schemas...\n", len(objectTypes))
 
 	for i, objectType := range objectTypes {
-		fmt.Printf("Getting schema %d/%d: %s\n", i+1, len(objectTypes), objectType)
+		pd.logger.Printf("Getting schema %d/%d: %s\n", i+1, len(objectTypes), objectType)
 
 		req, err := http.NewRequest(
 			"GET",
@@ -159,7 +164,7 @@ func (pd PortalDefinition) getAllSchemas() ([]hs.Schema, error) {
 			nil,
 		)
 		if err != nil {
-			fmt.Printf("Failed to create request: %s\n", err)
+			pd.logger.Printf("Failed to create request: %s\n", err)
 			return nil, err
 		}
 		// Replace YOUR_ACCESS_TOKEN with the actual token
@@ -167,28 +172,28 @@ func (pd PortalDefinition) getAllSchemas() ([]hs.Schema, error) {
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			fmt.Printf("Failed to send request: %s\n", err)
+			pd.logger.Printf("Failed to send request: %s\n", err)
 			return nil, err
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Printf("Failed to read response body: %s\n", err)
+			pd.logger.Printf("Failed to read response body: %s\n", err)
 			return nil, err
 		}
 
 		var schema hs.Schema
 		err = json.Unmarshal(body, &schema)
 		if err != nil {
-			fmt.Printf("Failed to unmarshal response: %s\n", err)
+			pd.logger.Printf("Failed to unmarshal response: %s\n", err)
 			return nil, err
 		}
 
 		schemas = append(schemas, schema)
 	}
 
-	fmt.Println("Default schemas retrieved.")
+	pd.logger.Println("Default schemas retrieved.")
 
 	return schemas, nil
 }
@@ -196,7 +201,7 @@ func (pd PortalDefinition) getAllSchemas() ([]hs.Schema, error) {
 func (pd PortalDefinition) getAssociationTypes(
 	schemas []hs.Schema,
 ) (map[string]map[string]map[string]Association, error) {
-	fmt.Println("Getting association types from HubSpot...")
+	pd.logger.Println("Getting association types from HubSpot...")
 
 	type LabelResponse struct {
 		Results []Association `json:"results"`
@@ -205,7 +210,7 @@ func (pd PortalDefinition) getAssociationTypes(
 	// map of association string type to association type
 	associationTypes := map[string]map[string]map[string]Association{}
 	for _, schema := range schemas {
-		fmt.Printf(
+		pd.logger.Printf(
 			"Getting association types for schema %s, %d/%d\n",
 			schema.Name,
 			len(associationTypes)+1,
@@ -231,28 +236,28 @@ func (pd PortalDefinition) getAssociationTypes(
 				nil,
 			)
 			if err != nil {
-				fmt.Printf("Failed to create request: %s\n", err)
+				pd.logger.Printf("Failed to create request: %s\n", err)
 				return nil, err
 			}
 			req.Header.Add("Authorization", "Bearer "+pd.Token)
 
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
-				fmt.Printf("Failed to send request: %s\n", err)
+				pd.logger.Printf("Failed to send request: %s\n", err)
 				return nil, err
 			}
 			defer resp.Body.Close()
 
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				fmt.Printf("Failed to read response body: %s\n", err)
+				pd.logger.Printf("Failed to read response body: %s\n", err)
 				return nil, err
 			}
 
 			var labelResponse LabelResponse
 			err = json.Unmarshal(body, &labelResponse)
 			if err != nil {
-				fmt.Printf("Failed to unmarshal response: %s\n", err)
+				pd.logger.Printf("Failed to unmarshal response: %s\n", err)
 				return nil, err
 			}
 
@@ -287,7 +292,7 @@ func (pd PortalDefinition) getAssociationTypes(
 		}
 	}
 
-	fmt.Println("Association types retrieved.")
+	pd.logger.Println("Association types retrieved.")
 
 	return associationTypes, nil
 }

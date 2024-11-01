@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/killean-solvely/hsapi-gen/internal/codegen/portal"
 	"github.com/killean-solvely/hsapi-gen/internal/codegen/templates"
@@ -40,12 +41,20 @@ func (c Codegen) GenerateCode(outfolder string) error {
 
 // Loads the portal definitions from the HubSpot API, or file if available
 func (c *Codegen) loadPortals() error {
+	var wg sync.WaitGroup
+
 	for i := range c.PortalDefinitions {
-		err := c.PortalDefinitions[i].LoadPortalDefinition()
-		if err != nil {
-			return err
-		}
+		wg.Add(1)
+		go func(pd *portal.PortalDefinition) {
+			err := pd.LoadPortalDefinition()
+			if err != nil {
+				fmt.Printf("Error loading portal definition for %s: %s\n", pd.PortalName, err)
+			}
+			wg.Done()
+		}(&c.PortalDefinitions[i])
 	}
+
+	wg.Wait()
 
 	return nil
 }
