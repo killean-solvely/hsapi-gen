@@ -47,7 +47,7 @@ func (c Codegen) GenerateCode(outfolder string) error {
 	// Generate the shared portal definition
 	c.sharedDefinition = c.createSharedPortalDefinition()
 
-	return nil
+	return c.generateFiles(outfolder)
 }
 
 // Loads the portal definitions from the HubSpot API, or file if available
@@ -73,7 +73,11 @@ func (c *Codegen) parsePortals() {
 	for i := range c.portalDefinitions {
 		pd := &c.portalDefinitions[i]
 		pcd := PortalCodeDefinition{
-			OriginalPortal: pd,
+			OriginalPortal:   pd,
+			ObjectNameToType: map[string]SchemaData{},
+			Enums:            []Enum{},
+			Objects:          []Object{},
+			ObjectIDs:        map[string]string{},
 		}
 		pcd.parsePortalDefinition()
 		c.codeDefinitions[pd.PortalName] = pcd
@@ -83,9 +87,16 @@ func (c *Codegen) parsePortals() {
 // Prepares a combined portal definition for the shared template
 func (c Codegen) createSharedPortalDefinition() *SharedDefinition {
 	// Create a new portal definition
+	pd := portal.NewPortalDefinition("shared", "", c.debug)
 	sharedPD := &SharedDefinition{
-		portal:         portal.NewPortalDefinition("shared", "", c.debug),
-		codeDefinition: nil,
+		portal: pd,
+		codeDefinition: &PortalCodeDefinition{
+			OriginalPortal:   pd,
+			ObjectNameToType: map[string]SchemaData{},
+			Enums:            []Enum{},
+			Objects:          []Object{},
+			ObjectIDs:        map[string]string{},
+		},
 	}
 
 	// Ensure we have at least one portal to compare against
@@ -165,7 +176,7 @@ func (c Codegen) createSharedPortalDefinition() *SharedDefinition {
 }
 
 // Generates the code for the portals
-func (c Codegen) generateFiles(outfolder string, sharedPD *portal.PortalDefinition) error {
+func (c Codegen) generateFiles(outfolder string) error {
 	// Check to see if the output folder exists
 	if _, err := os.Stat(outfolder); os.IsNotExist(err) {
 		// Create the output folder

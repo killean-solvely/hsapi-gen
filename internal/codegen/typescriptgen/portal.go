@@ -48,6 +48,7 @@ type PortalCodeDefinition struct {
 
 func (pcd *PortalCodeDefinition) parsePortalDefinition() {
 	pcd.parseSchemaData()
+	pcd.parseObjects()
 }
 
 func (pcd *PortalCodeDefinition) parseSchemaData() {

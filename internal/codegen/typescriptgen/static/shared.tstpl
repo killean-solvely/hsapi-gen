@@ -33,7 +33,7 @@ export enum {{ .Name }} {
 {{- end}}
 
 {{- range .Objects }}
-export interface {{ .Name }} {
+export interface {{ .InterfaceName }} {
   {{- range .Properties }}
   {{- if .Comment }}
   /** {{ .Comment }} **/
@@ -45,6 +45,6 @@ export interface {{ .Name }} {
 
 export interface ObjectTypes {
 {{- range .Objects }}
-  {{ .InternalName }}: {{ .Name }};
+  {{ .InternalName }}: {{ .InterfaceName }};
 {{- end }}
 }
