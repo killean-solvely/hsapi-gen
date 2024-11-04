@@ -43,12 +43,12 @@ func main() {
 
 	fmt.Println("Starting code generation")
 
-	codegen := codegen.NewCodegen()
+	codegen := codegen.New(false)
 	for _, s := range config.Schemas {
 		codegen.AddPortal(s.Name, s.Token)
 	}
 
-	err = codegen.GenerateCode(config.Outfolder)
+	err = codegen.GenerateTypescript(config.Outfolder)
 	if err != nil {
 		panic(err)
 	}

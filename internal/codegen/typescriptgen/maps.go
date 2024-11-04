@@ -1,4 +1,4 @@
-package portal
+package typescriptgen
 
 var categoryMap = map[string]string{
 	"HUBSPOT_DEFINED":    "HubspotDefined",

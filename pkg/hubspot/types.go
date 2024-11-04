@@ -1,4 +1,4 @@
-package hs
+package hubspot
 
 import "time"
 
@@ -76,4 +76,14 @@ type Option struct {
 
 type ModificationMetadata struct {
 	// fields for modification metadata
+}
+
+type AssociationLabelResponse struct {
+	Results []AssociationLabel `json:"results"`
+}
+
+type AssociationLabel struct {
+	ID       int    `json:"typeId"`
+	Label    string `json:"label"`
+	Category string `json:"category"`
 }
