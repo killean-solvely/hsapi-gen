@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	Outfolder string `json:"outfolder"`
+	Lang      string `json:"lang"`
 	Schemas   []struct {
 		Name  string `json:"name"`
 		Token string `json:"token"`
@@ -48,9 +49,16 @@ func main() {
 		codegen.AddPortal(s.Name, s.Token)
 	}
 
-	err = codegen.GenerateTypescript(config.Outfolder)
-	if err != nil {
-		panic(err)
+	switch config.Lang {
+	case "ts":
+		err = codegen.GenerateTypescript(config.Outfolder)
+		if err != nil {
+			panic(err)
+		}
+	case "go":
+		panic("Go code generation is not implemented yet")
+	default:
+		panic("Unsupported language")
 	}
 
 	fmt.Println("Code generation complete")

@@ -1,5 +1,6 @@
 {
   "outfolder": "./generated/",
+  "lang": "ts",
   "schemas": [
     {
       "name": "production",

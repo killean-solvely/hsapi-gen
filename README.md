@@ -15,6 +15,7 @@ Create a config file with the following structure:
 ```json
 {
   "outfolder": "./generated/",
+  "lang": "ts",
   "schemas": [
     {
       "name": "production",
@@ -29,6 +30,7 @@ Create a config file with the following structure:
 ```
 
 - `outfolder` is the folder where the generated files will be saved.
+- `lang` is the language you want the types to be generated in. Currently only `ts` is supported.
 - `schemas` is an array of objects that represent the different Hubspot portals you want to generate types for.
   - `name` is the name of the portal.
   - `token` is the API key for the portal.
