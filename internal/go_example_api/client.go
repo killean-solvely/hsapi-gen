@@ -1,6 +1,7 @@
 package go_example_api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -164,9 +165,9 @@ type getFuncType[TObject any, TObjectProperties any] func(id string, properties 
 
 type getWithHistoryType[TObject any, TObjectProperties ~string] func(id string, properties []TObjectProperties) (map[TObjectProperties]ObjectWithHistory, error)
 
-type getBatchFuncType[TObject any, TObjectProperties any] func(ids []string, properties []TObjectProperties) ([]TObject, error)
+type getBatchFuncType[TObject any, TObjectProperties ~string] func(ids []string, properties []TObjectProperties) ([]TObject, error)
 
-type createFuncType[TObject any, TPartialObject any] func(obj TPartialObject) (*TObject, error)
+type createFuncType[TObject any, TPartialObject any] func(obj TPartialObject) (*TPartialObject, error)
 
 type createBatchFuncType[TObject any, TPartialObject any] func(objs []TPartialObject) ([]TObject, error)
 
@@ -321,7 +322,7 @@ func getWithHistoryFuncBuilder[TObject any, TObjectProperties ~string](
 	return func(id string, properties []TObjectProperties) (map[TObjectProperties]ObjectWithHistory, error) {
 		objInternalID := ObjectTypeToID[objectType]
 
-		type GetResponse struct {
+		type GetWithHistoryResponse struct {
 			ID                    string                             `json:"id,omitempty"`
 			Properties            map[TObjectProperties]string       `json:"properties,omitempty"`
 			PropertiesWithHistory map[TObjectProperties]HistoryEntry `json:"propertiesWithHistory,omitempty"`
@@ -330,7 +331,7 @@ func getWithHistoryFuncBuilder[TObject any, TObjectProperties ~string](
 			Archived              bool                               `json:"archived,omitempty"`
 		}
 
-		resp, err := apiFunctionWithResponse[GetResponse](
+		resp, err := apiFunctionWithResponse[GetWithHistoryResponse](
 			client,
 			"GET",
 			"/crm/v3/objects/"+objInternalID+"/"+id,
@@ -352,29 +353,167 @@ func getWithHistoryFuncBuilder[TObject any, TObjectProperties ~string](
 	}
 }
 
-func getBatchFuncBuilder[TObject any, TObjectProperties any](
+func getBatchFuncBuilder[TObject any, TObjectProperties ~string](
 	client *http.Client,
+	objectType ObjectInternalName,
 ) getBatchFuncType[TObject, TObjectProperties] {
 	return func(ids []string, properties []TObjectProperties) ([]TObject, error) {
-		var objs []TObject
+		type GetBatchInput struct {
+			Inputs []struct {
+				ID string `json:"id,omitempty"`
+			} `json:"inputs,omitempty"`
+			Properties []TObjectProperties `json:"properties,omitempty"`
+		}
+
+		type GetBatchResponse struct {
+			Results []struct {
+				ID                    string                             `json:"id,omitempty"`
+				Properties            TObject                            `json:"properties,omitempty"`
+				PropertiesWithHistory map[TObjectProperties]HistoryEntry `json:"propertiesWithHistory,omitempty"`
+				CreatedAt             time.Time                          `json:"createdAt,omitempty"`
+				UpdatedAt             time.Time                          `json:"updatedAt,omitempty"`
+				Archived              bool                               `json:"archived,omitempty"`
+			} `json:"results,omitempty"`
+		}
+
+		objInternalID := ObjectTypeToID[objectType]
+
+		inputs := make([]struct {
+			ID string `json:"id,omitempty"`
+		}, len(ids))
+
+		for i, id := range ids {
+			inputs[i].ID = id
+		}
+
+		input := GetBatchInput{
+			Inputs:     inputs,
+			Properties: properties,
+		}
+
+		inputJSON, err := json.Marshal(input)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := apiFunctionWithResponse[GetBatchResponse](
+			client,
+			"POST",
+			"/crm/v3/objects/"+objInternalID+"/batch/read",
+			bytes.NewBuffer(inputJSON),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		objs := make([]TObject, len(resp.Results))
+		for i, result := range resp.Results {
+			objs[i] = result.Properties
+		}
+
 		return objs, nil
 	}
 }
 
 func createFuncBuilder[TObject any, TPartialObject any](
 	client *http.Client,
+	objectType ObjectInternalName,
 ) createFuncType[TObject, TPartialObject] {
-	return func(obj TPartialObject) (*TObject, error) {
-		return nil, nil
+	return func(obj TPartialObject) (*TPartialObject, error) {
+		type CreateInput struct {
+			Associations []struct{}     `json:"associations,omitempty"`
+			Properties   TPartialObject `json:"properties,omitempty"`
+		}
+		type CreateResponse struct {
+			ID         string         `json:"id,omitempty"`
+			Properties TPartialObject `json:"properties,omitempty"`
+			CreatedAt  time.Time      `json:"createdAt,omitempty"`
+			UpdatedAt  time.Time      `json:"updatedAt,omitempty"`
+		}
+
+		objInternalID := ObjectTypeToID[objectType]
+
+		input := CreateInput{
+			Properties:   obj,
+			Associations: []struct{}{},
+		}
+
+		inputJSON, err := json.Marshal(input)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := apiFunctionWithResponse[CreateResponse](
+			client,
+			"POST",
+			"/crm/v3/objects/"+objInternalID,
+			bytes.NewBuffer(inputJSON),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return &resp.Properties, nil
 	}
 }
 
 func createBatchFuncBuilder[TObject any, TPartialObject any](
 	client *http.Client,
+	objectType ObjectInternalName,
 ) createBatchFuncType[TObject, TPartialObject] {
 	return func(objs []TPartialObject) ([]TObject, error) {
-		var newObjs []TObject
-		return newObjs, nil
+		type CreateBatchInput struct {
+			Inputs []struct {
+				Associations []struct{}     `json:"associations,omitempty"`
+				Properties   TPartialObject `json:"properties,omitempty"`
+			} `json:"inputs,omitempty"`
+		}
+		type CreateBatchResponse struct {
+			Results []struct {
+				ID         string         `json:"id,omitempty"`
+				Properties TPartialObject `json:"properties,omitempty"`
+				CreatedAt  time.Time      `json:"createdAt,omitempty"`
+				UpdatedAt  time.Time      `json:"updatedAt,omitempty"`
+			} `json:"results,omitempty"`
+		}
+
+		objInternalID := ObjectTypeToID[objectType]
+
+		inputs := make([]struct {
+			Associations []struct{}     `json:"associations,omitempty"`
+			Properties   TPartialObject `json:"properties,omitempty"`
+		}, len(objs))
+
+		for i, obj := range objs {
+			inputs[i].Properties = obj
+			inputs[i].Associations = []struct{}{}
+		}
+
+		input := CreateBatchInput{
+			Inputs: inputs,
+		}
+
+		inputJSON, err := json.Marshal(input)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := apiFunctionWithResponse[CreateBatchResponse](
+			client,
+			"POST",
+			"/crm/v3/objects/"+objInternalID+"/batch/create",
+			bytes.NewBuffer(inputJSON),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		createdObjs := make([]TObject, len(resp.Results))
+		for i, result := range resp.Results {
+			objs[i] = result.Properties
+		}
+
+		return createdObjs, nil
 	}
 }
 
@@ -382,7 +521,10 @@ func updateFuncBuilder[TObject any, TObjectProperties ~string](
 	client *http.Client,
 ) updateFuncType[TObject, TObjectProperties] {
 	return func(id string, props map[TObjectProperties]string) error {
-		return nil
+		type UpdateInput struct {
+			Properties map[TObjectProperties]string `json:"properties,omitempty"`
+		}
+		panic("not implemented")
 	}
 }
 
@@ -390,15 +532,13 @@ func updateBatchFuncBuilder[TObject any, TObjectProperties ~string](
 	client *http.Client,
 ) updateBatchFuncType[TObject, TObjectProperties] {
 	return func(inputs []UpdateBatchInput) error {
-		return nil
+		panic("not implemented")
 	}
 }
 
 func getAssociationsFuncBuilder[TObject any](client *http.Client) getAssociationsFuncType[TObject] {
 	return func(fromObjID string, toObjType ObjectInternalName) ([]string, error) {
-		// objTypeID := ObjectTypeToID[toObjType]
-		var assocIDs []string
-		return assocIDs, nil
+		panic("not implemented")
 	}
 }
 
@@ -409,7 +549,7 @@ func associateFuncBuilder(
 	assocTypeID string,
 ) associateFuncType {
 	return func(fromObjID string, toObjID string) error {
-		return nil
+		panic("not implemented")
 	}
 }
 
@@ -437,22 +577,34 @@ func (api APIBuilder) newGetWithHistoryFunc() GetWithHistoryFunc {
 
 func (api APIBuilder) newGetBatchFunc() GetBatchFunc {
 	var get GetBatchFunc
-	get.GetBatch.Contact = getBatchFuncBuilder[Contact, ContactProperty](api.client)
-	get.GetBatch.Deal = getBatchFuncBuilder[Deal, DealProperty](api.client)
+	get.GetBatch.Contact = getBatchFuncBuilder[Contact, ContactProperty](
+		api.client,
+		ContactInternalName,
+	)
+	get.GetBatch.Deal = getBatchFuncBuilder[Deal, DealProperty](api.client, DealInternalName)
 	return get
 }
 
 func (api APIBuilder) newCreateFunc() CreateFunc {
 	var create CreateFunc
-	create.Create.Contact = createFuncBuilder[Contact, ContactPartial](api.client)
-	create.Create.Deal = createFuncBuilder[Deal, DealPartial](api.client)
+	create.Create.Contact = createFuncBuilder[Contact, ContactPartial](
+		api.client,
+		ContactInternalName,
+	)
+	create.Create.Deal = createFuncBuilder[Deal, DealPartial](api.client, DealInternalName)
 	return create
 }
 
 func (api APIBuilder) newCreateBatchFunc() CreateBatchFunc {
 	var create CreateBatchFunc
-	create.CreateBatch.Contact = createBatchFuncBuilder[Contact, ContactPartial](api.client)
-	create.CreateBatch.Deal = createBatchFuncBuilder[Deal, DealPartial](api.client)
+	create.CreateBatch.Contact = createBatchFuncBuilder[Contact, ContactPartial](
+		api.client,
+		ContactInternalName,
+	)
+	create.CreateBatch.Deal = createBatchFuncBuilder[Deal, DealPartial](
+		api.client,
+		DealInternalName,
+	)
 	return create
 }
 
