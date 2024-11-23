@@ -6,8 +6,8 @@ import (
 	"path"
 	"sync"
 
-	"github.com/killean-solvely/hsapi-gen/internal/codegen/portal"
-	"github.com/killean-solvely/hsapi-gen/internal/codegen/templates"
+	"github.com/killean-solvely/hsapi-gen/pkg/codegen/portal"
+	"github.com/killean-solvely/hsapi-gen/pkg/codegen/templates"
 )
 
 type Codegen struct {
