@@ -5,7 +5,7 @@ import (
 	"embed"
 	"text/template"
 
-	"github.com/killean-solvely/hsapi-gen/internal/codegen/portal"
+	"github.com/killean-solvely/hsapi-gen/pkg/codegen/portal"
 )
 
 //go:embed static/*.tstpl

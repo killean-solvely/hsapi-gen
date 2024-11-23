@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/killean-solvely/hsapi-gen/internal/codegen/hs"
-	"github.com/killean-solvely/hsapi-gen/internal/codegen/utils"
+	"github.com/killean-solvely/hsapi-gen/pkg/codegen/hs"
+	"github.com/killean-solvely/hsapi-gen/pkg/codegen/utils"
 )
 
 type PortalDefinition struct {

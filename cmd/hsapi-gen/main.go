@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/killean-solvely/hsapi-gen/internal/codegen"
+	"github.com/killean-solvely/hsapi-gen/pkg/codegen"
 )
 
 type Config struct {
