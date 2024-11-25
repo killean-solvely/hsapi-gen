@@ -1,7 +1,7 @@
 package codegen
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"path"
 	"sync"
@@ -12,11 +12,19 @@ import (
 
 type Codegen struct {
 	PortalDefinitions []portal.PortalDefinition
+	logger            *log.Logger
 }
 
 func NewCodegen() *Codegen {
 	return &Codegen{
 		PortalDefinitions: []portal.PortalDefinition{},
+		logger:            log.New(os.Stdout, "[CODEGEN] ", log.LstdFlags),
+	}
+}
+
+func (c *Codegen) SetLogger(logger *log.Logger) {
+	if logger != nil {
+		c.logger = logger
 	}
 }
 
@@ -24,7 +32,7 @@ func NewCodegen() *Codegen {
 func (c *Codegen) AddPortal(portalName, token string) {
 	c.PortalDefinitions = append(
 		c.PortalDefinitions,
-		*portal.NewPortalDefinition(portalName, token),
+		*portal.NewPortalDefinition(portalName, token, c.logger),
 	)
 }
 
@@ -48,7 +56,7 @@ func (c *Codegen) loadPortals() error {
 		go func(pd *portal.PortalDefinition) {
 			err := pd.LoadPortalDefinition()
 			if err != nil {
-				fmt.Printf("Error loading portal definition for %s: %s\n", pd.PortalName, err)
+				c.logger.Printf("Error loading portal definition for %s: %s\n", pd.PortalName, err)
 			}
 			wg.Done()
 		}(&c.PortalDefinitions[i])
@@ -62,7 +70,7 @@ func (c *Codegen) loadPortals() error {
 // Prepares a combined portal definition for the shared template
 func (c Codegen) createSharedPortalDefinition() *portal.PortalDefinition {
 	// Create a new portal definition
-	sharedPD := portal.NewPortalDefinition("shared", "")
+	sharedPD := portal.NewPortalDefinition("shared", "", c.logger)
 
 	// Ensure we have at least one portal to compare against
 	if len(c.PortalDefinitions) == 0 {
@@ -275,7 +283,7 @@ func (c Codegen) generateFiles(outfolder string, sharedPD *portal.PortalDefiniti
 	}
 
 	// Generate the client code
-	fmt.Println("Generating Client Code...")
+	c.logger.Println("Generating Client Code...")
 	clientCode, err := c.generateClientCode(sharedPD)
 	if err != nil {
 		return err
@@ -288,9 +296,9 @@ func (c Codegen) generateFiles(outfolder string, sharedPD *portal.PortalDefiniti
 	}
 
 	// Generate the code for the portals
-	fmt.Println("Generating Portal Code...")
+	c.logger.Println("Generating Portal Code...")
 	for i := range c.PortalDefinitions {
-		fmt.Printf("Processing portal %s...\n", c.PortalDefinitions[i].PortalName)
+		c.logger.Printf("Processing portal %s...\n", c.PortalDefinitions[i].PortalName)
 		portalCode, err := c.generatePortalCode(&c.PortalDefinitions[i])
 		if err != nil {
 			return err
@@ -308,7 +316,7 @@ func (c Codegen) generateFiles(outfolder string, sharedPD *portal.PortalDefiniti
 	}
 
 	// Generate the code for the shared types
-	fmt.Println("Generating Shared Code...")
+	c.logger.Println("Generating Shared Code...")
 	sharedCode, err := c.generateSharedCode(sharedPD)
 	if err != nil {
 		return err
